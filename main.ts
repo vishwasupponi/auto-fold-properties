@@ -216,7 +216,7 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Auto Fold Properties Settings')
+			.setName('General')
 			.setHeading();
 
 		// 1. Checkbox: Remember fold state until app closes
