@@ -215,10 +215,6 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName('General')
-			.setHeading();
-
 		// 1. Checkbox: Remember fold state until app closes
 		new Setting(containerEl)
 			.setName('Fold Once Per Session')
@@ -239,6 +235,39 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 			.setHeading();
 
 		let inputComponent: TextComponent;
+		const folderListContainer = containerEl.createDiv();
+
+		const renderFolderList = () => {
+			folderListContainer.empty();
+
+			new Setting(folderListContainer)
+				.setName('Configured Target Folders')
+				.setHeading();
+
+			if (this.plugin.settings.targetFolders.length === 0) {
+				folderListContainer.createEl('p', {
+					text: 'No specific folders selected. Property folding applies to ALL folders in your vault.',
+					cls: 'setting-item-description'
+				});
+				return;
+			}
+
+			for (let i = 0; i < this.plugin.settings.targetFolders.length; i++) {
+				const folderPath = this.plugin.settings.targetFolders[i];
+				new Setting(folderListContainer)
+					.setName(folderPath)
+					.addButton((button) =>
+						button
+							.setButtonText('Remove')
+							.setDestructive()
+							.onClick(async () => {
+								this.plugin.settings.targetFolders.splice(i, 1);
+								await this.plugin.saveSettings();
+								renderFolderList();
+							})
+					);
+			}
+		};
 
 		new Setting(containerEl)
 			.setName('Target Folders')
@@ -257,37 +286,12 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 						if (value && !this.plugin.settings.targetFolders.includes(value)) {
 							this.plugin.settings.targetFolders.push(value);
 							await this.plugin.saveSettings();
-							this.display();
+							inputComponent.setValue('');
+							renderFolderList();
 						}
 					})
 			);
 
-		new Setting(containerEl)
-			.setName('Configured Target Folders')
-			.setHeading();
-
-		if (this.plugin.settings.targetFolders.length === 0) {
-			containerEl.createEl('p', {
-				text: 'No specific folders selected. Property folding applies to ALL folders in your vault.',
-				cls: 'setting-item-description'
-			});
-			return;
-		}
-
-		for (let i = 0; i < this.plugin.settings.targetFolders.length; i++) {
-			const folderPath = this.plugin.settings.targetFolders[i];
-			new Setting(containerEl)
-				.setName(folderPath)
-				.addButton((button) =>
-					button
-						.setButtonText('Remove')
-						.setDestructive()
-						.onClick(async () => {
-							this.plugin.settings.targetFolders.splice(i, 1);
-							await this.plugin.saveSettings();
-							this.display();
-						})
-				);
-		}
+		renderFolderList();
 	}
 }
