@@ -1,4 +1,4 @@
-import { Plugin, PluginSettingTab, Setting, TFile, TFolder, MarkdownView, AbstractInputSuggest, TextComponent } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, TFile, TFolder, MarkdownView, AbstractInputSuggest, TextComponent } from 'obsidian';
 
 interface FoldPropertiesSettings {
 	targetFolders: string[];
@@ -10,7 +10,14 @@ const DEFAULT_SETTINGS: FoldPropertiesSettings = {
 	foldOncePerSession: false
 };
 
-export default class FoldPropertiesReliablePlugin extends Plugin {
+interface AppWithCommands {
+	commands?: {
+		commands: Record<string, unknown>;
+		executeCommandById: (id: string) => boolean;
+	};
+}
+
+export default class AutoFoldPropertiesPlugin extends Plugin {
 	settings: FoldPropertiesSettings;
 	private newlyCreatedFiles: Set<string> = new Set();
 	private sessionFoldedFiles: Set<string> = new Set();
@@ -25,7 +32,7 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 			this.app.vault.on('create', (file) => {
 				if (file instanceof TFile && file.extension === 'md') {
 					this.newlyCreatedFiles.add(file.path);
-					setTimeout(() => {
+					window.setTimeout(() => {
 						this.newlyCreatedFiles.delete(file.path);
 					}, 10000);
 				}
@@ -106,7 +113,7 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 
 		if (!matchingLeaf || !(matchingLeaf.view instanceof MarkdownView)) {
 			if (attempts < 20) {
-				setTimeout(() => {
+				window.setTimeout(() => {
 					this.foldPropertiesWhenReady(filePath, attempts + 1);
 				}, 50);
 			}
@@ -120,7 +127,8 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 			const isCollapsed = container.classList.contains('is-collapsed');
 
 			if (!isCollapsed) {
-				const appCommands = (this.app as any).commands;
+				const appWithCommands = this.app as unknown as AppWithCommands;
+				const appCommands = appWithCommands.commands;
 				if (appCommands) {
 					if (appCommands.commands['editor:fold-properties']) {
 						appCommands.executeCommandById('editor:fold-properties');
@@ -131,7 +139,7 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 			}
 
 			// Verify if now collapsed, and ONLY THEN mark as session-folded
-			setTimeout(() => {
+			window.setTimeout(() => {
 				const updatedContainer = view.contentEl.querySelector('.metadata-container');
 				if (updatedContainer && updatedContainer.classList.contains('is-collapsed')) {
 					this.sessionFoldedFiles.add(filePath);
@@ -143,18 +151,18 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 
 		// Retry up to 20 times (every 50ms = 1000ms total window) to ensure DOM is rendered
 		if (attempts < 20) {
-			setTimeout(() => {
+			window.setTimeout(() => {
 				this.foldPropertiesWhenReady(filePath, attempts + 1);
 			}, 50);
 		}
 	}
 
 	async loadSettings() {
-		const data = await this.loadData();
-		this.settings = {
-			targetFolders: Array.isArray(data?.targetFolders) ? data.targetFolders : [],
-			foldOncePerSession: typeof data?.foldOncePerSession === 'boolean' ? data.foldOncePerSession : false
-		};
+		const data = (await this.loadData()) as Partial<FoldPropertiesSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, data);
+		if (!Array.isArray(this.settings.targetFolders)) {
+			this.settings.targetFolders = [];
+		}
 	}
 
 	async saveSettings() {
@@ -168,7 +176,7 @@ export default class FoldPropertiesReliablePlugin extends Plugin {
 class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	private textComponent: TextComponent;
 
-	constructor(app: any, textComponent: TextComponent) {
+	constructor(app: App, textComponent: TextComponent) {
 		super(app, textComponent.inputEl);
 		this.textComponent = textComponent;
 	}
@@ -185,7 +193,7 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
 	}
 
 	renderSuggestion(folder: TFolder, el: HTMLElement): void {
-		el.createEl('div', { text: folder.path });
+		el.setText(folder.path);
 	}
 
 	selectSuggestion(folder: TFolder): void {
@@ -196,9 +204,9 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
 }
 
 class FoldPropertiesSettingTab extends PluginSettingTab {
-	plugin: FoldPropertiesReliablePlugin;
+	plugin: AutoFoldPropertiesPlugin;
 
-	constructor(app: any, plugin: FoldPropertiesReliablePlugin) {
+	constructor(app: App, plugin: AutoFoldPropertiesPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -207,7 +215,9 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		containerEl.createEl('h2', { text: 'Auto Fold Properties Settings' });
+		new Setting(containerEl)
+			.setName('Auto Fold Properties Settings')
+			.setHeading();
 
 		// 1. Checkbox: Remember fold state until app closes
 		new Setting(containerEl)
@@ -224,7 +234,9 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 					})
 			);
 
-		containerEl.createEl('h3', { text: 'Folder Selection' });
+		new Setting(containerEl)
+			.setName('Folder Selection')
+			.setHeading();
 
 		let inputComponent: TextComponent;
 
@@ -250,7 +262,9 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 					})
 			);
 
-		containerEl.createEl('h4', { text: 'Configured Target Folders' });
+		new Setting(containerEl)
+			.setName('Configured Target Folders')
+			.setHeading();
 
 		if (this.plugin.settings.targetFolders.length === 0) {
 			containerEl.createEl('p', {
@@ -267,7 +281,7 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 				.addButton((button) =>
 					button
 						.setButtonText('Remove')
-						.setWarning()
+						.setDestructive()
 						.onClick(async () => {
 							this.plugin.settings.targetFolders.splice(i, 1);
 							await this.plugin.saveSettings();
