@@ -230,24 +230,24 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 				addItem: {
 					name: 'Add folder',
 					action: () => {
-						new FolderSuggestModal(this.app, async (selectedFolder) => {
+						new FolderSuggestModal(this.app, (selectedFolder) => {
 							if (!this.plugin.settings.targetFolders.includes(selectedFolder.path)) {
 								this.plugin.settings.targetFolders.push(selectedFolder.path);
-								await this.plugin.saveSettings();
+								void this.plugin.saveSettings();
 								this.update();
 							}
 						}).open();
 					}
 				},
-				onDelete: async (idx: number) => {
+				onDelete: (idx: number) => {
 					this.plugin.settings.targetFolders.splice(idx, 1);
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 					this.update();
 				},
-				onReorder: async (oldIndex: number, newIndex: number) => {
+				onReorder: (oldIndex: number, newIndex: number) => {
 					const [moved] = this.plugin.settings.targetFolders.splice(oldIndex, 1);
 					this.plugin.settings.targetFolders.splice(newIndex, 0, moved);
-					await this.plugin.saveSettings();
+					void this.plugin.saveSettings();
 				},
 				items: this.plugin.settings.targetFolders.map((path) => ({
 					name: path,
