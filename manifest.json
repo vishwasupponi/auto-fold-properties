@@ -1,0 +1,10 @@
+{
+  "id": "auto-fold-properties",
+  "name": "Auto Fold Properties",
+  "version": "1.0.0",
+  "minAppVersion": "1.4.0",
+  "description": "Automatically folds note frontmatter properties on open with folder targeting, new note exemption, and session state memory.",
+  "author": "Vishwas Upponi",
+  "authorUrl": "https://github.com/vishwasupponi",
+  "isDesktopOnly": false
+}
