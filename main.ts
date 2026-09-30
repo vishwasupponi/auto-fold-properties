@@ -183,8 +183,16 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
 
 	getSuggestions(query: string): TFolder[] {
 		const lower = query.toLowerCase().trim();
-		const allFiles = this.app.vault.getAllLoadedFiles();
-		const folders = allFiles.filter((f): f is TFolder => f instanceof TFolder);
+		const folders: TFolder[] = [];
+		const collectFolders = (parent: TFolder) => {
+			for (const child of parent.children) {
+				if (child instanceof TFolder) {
+					folders.push(child);
+					collectFolders(child);
+				}
+			}
+		};
+		collectFolders(this.app.vault.getRoot());
 
 		if (!lower) return folders.slice(0, 10);
 		return folders
@@ -209,6 +217,10 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: AutoFoldPropertiesPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	getSettingDefinitions(): unknown[] {
+		return [];
 	}
 
 	display(): void {

@@ -1,6 +1,6 @@
 {
   "name": "obsidian-auto-fold-properties",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Automatically folds note frontmatter properties on open with folder targeting, new note exemption, and session state memory.",
   "main": "main.js",
   "author": "Vishwas Upponi",
