@@ -1,4 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, TFile, TFolder, MarkdownView, AbstractInputSuggest, TextComponent } from 'obsidian';
+import { App, Plugin, PluginSettingTab, TFile, TFolder, MarkdownView, FuzzySuggestModal, SettingDefinitionItem } from 'obsidian';
 
 interface FoldPropertiesSettings {
 	targetFolders: string[];
@@ -173,16 +173,16 @@ export default class AutoFoldPropertiesPlugin extends Plugin {
 	}
 }
 
-class FolderSuggest extends AbstractInputSuggest<TFolder> {
-	private textComponent: TextComponent;
+class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
+	private onChoose: (folder: TFolder) => void;
 
-	constructor(app: App, textComponent: TextComponent) {
-		super(app, textComponent.inputEl);
-		this.textComponent = textComponent;
+	constructor(app: App, onChoose: (folder: TFolder) => void) {
+		super(app);
+		this.onChoose = onChoose;
+		this.setPlaceholder('Type folder name to select...');
 	}
 
-	getSuggestions(query: string): TFolder[] {
-		const lower = query.toLowerCase().trim();
+	getItems(): TFolder[] {
 		const folders: TFolder[] = [];
 		const collectFolders = (parent: TFolder) => {
 			for (const child of parent.children) {
@@ -193,21 +193,15 @@ class FolderSuggest extends AbstractInputSuggest<TFolder> {
 			}
 		};
 		collectFolders(this.app.vault.getRoot());
-
-		if (!lower) return folders.slice(0, 10);
-		return folders
-			.filter((folder) => folder.path.toLowerCase().includes(lower))
-			.slice(0, 15);
+		return folders;
 	}
 
-	renderSuggestion(folder: TFolder, el: HTMLElement): void {
-		el.setText(folder.path);
+	getItemText(folder: TFolder): string {
+		return folder.path;
 	}
 
-	selectSuggestion(folder: TFolder): void {
-		this.textComponent.setValue(folder.path);
-		this.textComponent.inputEl.dispatchEvent(new Event('input'));
-		this.close();
+	onChooseItem(folder: TFolder): void {
+		this.onChoose(folder);
 	}
 }
 
@@ -219,86 +213,47 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
-		// 1. Checkbox: Remember fold state until app closes
-		new Setting(containerEl)
-			.setName('Fold Once Per Session')
-			.setDesc(
-				'When enabled, properties are auto-folded only the first time a note is opened per app session. Re-opening a note without closing Obsidian will remember your current fold state. When disabled, properties auto-fold every time a note is opened.'
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.foldOncePerSession)
-					.onChange(async (value) => {
-						this.plugin.settings.foldOncePerSession = value;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName('Folder Selection')
-			.setHeading();
-
-		let inputComponent: TextComponent;
-		const folderListContainer = containerEl.createDiv();
-
-		const renderFolderList = () => {
-			folderListContainer.empty();
-
-			new Setting(folderListContainer)
-				.setName('Configured Target Folders')
-				.setHeading();
-
-			if (this.plugin.settings.targetFolders.length === 0) {
-				folderListContainer.createEl('p', {
-					text: 'No specific folders selected. Property folding applies to ALL folders in your vault.',
-					cls: 'setting-item-description'
-				});
-				return;
-			}
-
-			for (let i = 0; i < this.plugin.settings.targetFolders.length; i++) {
-				const folderPath = this.plugin.settings.targetFolders[i];
-				new Setting(folderListContainer)
-					.setName(folderPath)
-					.addButton((button) =>
-						button
-							.setButtonText('Remove')
-							.onClick(async () => {
-								this.plugin.settings.targetFolders.splice(i, 1);
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return [
+			{
+				name: 'Fold once per session',
+				desc: 'When enabled, properties are auto-folded only the first time a note is opened per app session. Re-opening a note without closing Obsidian will remember your current fold state. When disabled, properties auto-fold every time a note is opened.',
+				control: {
+					type: 'toggle',
+					key: 'foldOncePerSession'
+				}
+			},
+			{
+				type: 'list',
+				heading: 'Target folders',
+				emptyState: 'No specific folders selected. Property folding applies to all folders in your vault.',
+				addItem: {
+					name: 'Add folder',
+					action: () => {
+						new FolderSuggestModal(this.app, async (selectedFolder) => {
+							if (!this.plugin.settings.targetFolders.includes(selectedFolder.path)) {
+								this.plugin.settings.targetFolders.push(selectedFolder.path);
 								await this.plugin.saveSettings();
-								renderFolderList();
-							})
-					);
+								this.update();
+							}
+						}).open();
+					}
+				},
+				onDelete: async (idx: number) => {
+					this.plugin.settings.targetFolders.splice(idx, 1);
+					await this.plugin.saveSettings();
+					this.update();
+				},
+				onReorder: async (oldIndex: number, newIndex: number) => {
+					const [moved] = this.plugin.settings.targetFolders.splice(oldIndex, 1);
+					this.plugin.settings.targetFolders.splice(newIndex, 0, moved);
+					await this.plugin.saveSettings();
+				},
+				items: this.plugin.settings.targetFolders.map((path) => ({
+					name: path,
+					searchable: false
+				}))
 			}
-		};
-
-		new Setting(containerEl)
-			.setName('Target Folders')
-			.setDesc('Type a folder path to apply property folding (Leave empty to apply to ALL folders in your vault):')
-			.addText((text) => {
-				inputComponent = text;
-				text.setPlaceholder('Start typing folder path...');
-				new FolderSuggest(this.app, text);
-			})
-			.addButton((button) =>
-				button
-					.setButtonText('Add Folder')
-					.setCta()
-					.onClick(async () => {
-						const value = inputComponent.getValue().trim();
-						if (value && !this.plugin.settings.targetFolders.includes(value)) {
-							this.plugin.settings.targetFolders.push(value);
-							await this.plugin.saveSettings();
-							inputComponent.setValue('');
-							renderFolderList();
-						}
-					})
-			);
-
-		renderFolderList();
+		];
 	}
 }
