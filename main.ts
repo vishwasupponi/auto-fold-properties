@@ -219,10 +219,6 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
-	getSettingDefinitions(): unknown[] {
-		return [];
-	}
-
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -271,7 +267,6 @@ class FoldPropertiesSettingTab extends PluginSettingTab {
 					.addButton((button) =>
 						button
 							.setButtonText('Remove')
-							.setDestructive()
 							.onClick(async () => {
 								this.plugin.settings.targetFolders.splice(i, 1);
 								await this.plugin.saveSettings();
