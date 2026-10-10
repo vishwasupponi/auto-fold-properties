@@ -1,5 +1,8 @@
 # Auto Fold Properties (Obsidian Plugin)
 
+> [!NOTE]
+> **Safe & Non-Destructive**: This plugin operates strictly at the UI display level. It **never modifies, edits, alters, or writes to any files or notes** in your vault.
+
 An Obsidian plugin that automatically collapses note frontmatter / properties upon opening a note, keeping your editor clean and focused.
 
 ## ✨ Features
